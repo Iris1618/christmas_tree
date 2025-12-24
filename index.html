@@ -1,0 +1,414 @@
+<!doctype html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8" />
+    <title>Christmas Tree – p5.js</title>
+    <script src="https://cdn.jsdelivr.net/npm/p5@1.9.4/lib/p5.min.js"></script>
+    <style>
+        body { margin: 0; background: #06121f; }
+        canvas { display: block; margin: 0 auto; }
+    </style>
+</head>
+<body>
+<script>
+    /* =========================
+       Config
+       ========================= */
+    const GROUND_Y = 0.92;   // snow ellipse center (ratio of height)
+    const GROUND_H = 0.25;   // snow ellipse height (ratio of height)
+
+    const TREE = {
+        topY: 180,
+        bottomY: 810,     // visual base of tree layers
+        layers: 7
+    };
+
+    let snow = [];
+    let stars = [];
+    let bulbs = [];
+
+    /* =========================
+       Setup / Draw
+       ========================= */
+    function setup() {
+        createCanvas(900, 900);
+        angleMode(RADIANS);
+        textFont('Georgia');
+
+        // stars
+        for (let i = 0; i < 170; i++) {
+            stars.push({
+                x: random(width),
+                y: random(height * 0.75),
+                r: random(0.8, 2.2),
+                w: random(0.003, 0.02),
+                p: random(TWO_PI)
+            });
+        }
+
+        // snow particles
+        for (let i = 0; i < 240; i++) {
+            snow.push({
+                x: random(width),
+                y: random(height),
+                r: random(1.2, 3.0),
+                s: random(0.7, 2.0),
+                drift: random(-0.6, 0.6),
+                w: random(0.002, 0.01),
+                p: random(TWO_PI)
+            });
+        }
+
+        buildSpiralBulbs();
+    }
+
+    function draw() {
+        drawBackground();
+        drawSnow();
+
+        // ground snow (behind everything)
+        noStroke();
+        fill(240, 245, 255, 230);
+        ellipse(width * 0.5, height * GROUND_Y, width * 1.25, height * GROUND_H);
+
+        push();
+        translate(width / 2, 0);
+
+        drawPineTree();         // jagged pine layers
+        drawSpiralWire();       // subtle wire
+        drawBulbsInteractive(); // bulbs with hover glow
+        drawTopStar();
+        drawBranchSkirt();
+        drawTrunk();            // trunk LAST so it stays visible & connected
+
+        pop();
+
+        drawGreeting();
+    }
+
+    /* =========================
+       Background / Snow
+       ========================= */
+    function drawBackground() {
+        // gradient sky
+        for (let y = 0; y < height; y++) {
+            let t = y / height;
+            let r = lerp(12, 3, t);
+            let g = lerp(24, 8, t);
+            let b = lerp(55, 25, t);
+            stroke(r, g, b);
+            line(0, y, width, y);
+        }
+
+        // twinkling stars
+        noStroke();
+        for (let s of stars) {
+            let tw = 0.45 + 0.55 * (sin(frameCount * s.w + s.p) * 0.5 + 0.5);
+            fill(255, 255, 255, 40 + 160 * tw);
+            circle(s.x, s.y, s.r * (0.7 + 0.6 * tw));
+        }
+
+        // moon
+        push();
+        translate(width * 0.84, height * 0.16);
+        noStroke();
+        fill(250, 240, 200, 170);
+        circle(0, 0, 120);
+        fill(10, 20, 55, 220);
+        circle(35, -8, 110);
+        pop();
+    }
+
+    function drawSnow() {
+        noStroke();
+        fill(255, 255, 255, 150);
+        for (let p of snow) {
+            p.x += p.drift + sin(frameCount * p.w + p.p) * 0.6;
+            p.y += p.s;
+
+            if (p.y > height + 10) { p.y = -10; p.x = random(width); }
+            if (p.x < -10) p.x = width + 10;
+            if (p.x > width + 10) p.x = -10;
+
+            circle(p.x, p.y, p.r);
+        }
+    }
+
+    /* =========================
+       Pine tree (jagged layers)
+       ========================= */
+
+    // silhouette width used for bulb placement
+    function treeHalfWidthAt(y) {
+        let t = constrain(map(y, TREE.topY, TREE.bottomY, 0, 1), 0, 1);
+        return lerp(30, 430, pow(t, 1.08));
+    }
+
+    function drawPineTree() {
+        // layered jagged triangles (boughs)
+        for (let i = 0; i < TREE.layers; i++) {
+            const t = i / (TREE.layers - 1);
+
+            // layer placement: from top to lower mid
+            const yTop = lerp(TREE.topY + 10, 520, t);
+            const h = lerp(120, 210, t);
+            const w = lerp(120, 540, t);
+
+            const base = color(16, 92, 46);
+            const dark = color(12, 72, 36);
+
+            drawJaggedLayer(0, yTop, w, h, base, dark, i);
+        }
+    }
+
+    function drawJaggedLayer(cx, yTop, w, h, baseCol, darkCol, seed) {
+        const yBottom = yTop + h;
+
+        // main layer
+        noStroke();
+        fill(baseCol);
+
+        beginShape();
+        vertex(cx, yTop);
+        vertex(cx - w * 0.5, yBottom);
+
+        // jagged bottom edge
+        const teeth = 11;
+        for (let i = 0; i <= teeth; i++) {
+            let tt = i / teeth;
+            let x = lerp(cx - w * 0.5, cx + w * 0.5, tt);
+            let amp = (i % 2 === 0) ? 18 : 7;
+            let y = yBottom - amp - 6 * noise(seed * 0.7, i * 0.45);
+            vertex(x, y);
+        }
+
+        vertex(cx + w * 0.5, yBottom);
+        endShape(CLOSE);
+
+        // subtle shadow (small)
+        fill(darkCol);
+        beginShape();
+        vertex(cx, yTop + 10);
+        vertex(cx + w * 0.35, yBottom - 35);
+        vertex(cx + w * 0.14, yBottom - 12);
+        endShape(CLOSE);
+
+        // subtle highlight (small)
+        fill(255, 255, 255, 10);
+        beginShape();
+        vertex(cx, yTop + 10);
+        vertex(cx - w * 0.18, yBottom - 45);
+        vertex(cx, yBottom - 70);
+        endShape(CLOSE);
+    }
+
+    /* =========================
+       Spiral bulbs + wire
+       ========================= */
+    function buildSpiralBulbs() {
+        bulbs = [];
+        const n = 120;
+        const turns = 4.8;
+
+        for (let i = 0; i < n; i++) {
+            const t = i / (n - 1);
+            const y = lerp(TREE.topY + 70, TREE.bottomY - 30, t);
+            const ang = t * TWO_PI * turns;
+
+            const half = treeHalfWidthAt(y) * 0.86;
+            let x = sin(ang) * half;
+
+            // organic jitter (prevents perfect necklace)
+            x += random(-10, 10);
+            const yy = y + random(-6, 6);
+
+            // keep inside
+            const half2 = treeHalfWidthAt(yy) * 0.92;
+            x = constrain(x, -half2, half2);
+
+            bulbs.push({
+                x, y: yy,
+                hue: random([8, 35, 120, 190, 300]),
+                phase: random(TWO_PI),
+                baseSize: random(5.2, 7.0)
+            });
+        }
+    }
+
+    function drawSpiralWire() {
+        stroke(255, 214, 120, 90);
+        strokeWeight(2);
+        noFill();
+        beginShape();
+        for (let b of bulbs) vertex(b.x, b.y);
+        endShape();
+        noStroke();
+    }
+
+    function drawBulbsInteractive() {
+        const mx = mouseX - width / 2;
+        const my = mouseY;
+
+        colorMode(HSB, 360, 100, 100, 255);
+
+        for (let b of bulbs) {
+            const tw = 0.65 + 0.35 * (sin(frameCount * 0.10 + b.phase) * 0.5 + 0.5);
+
+            const d = dist(mx, my, b.x, b.y);
+            const boost = constrain(1.0 - d / 120.0, 0, 1);
+
+            // keep glow SMALL (no bubble look)
+            const size = b.baseSize * (0.9 + 0.35 * tw) * (1.0 + 0.30 * boost);
+
+            const glowA = 12 + 20 * tw + 35 * boost;
+            noStroke();
+            fill(b.hue, 70, 100, glowA);
+            circle(b.x, b.y, size * (3.2 + 1.0 * boost));
+
+            fill(b.hue, 45, 100, 235);
+            circle(b.x, b.y, size * 1.65);
+
+            fill(0, 0, 100, 160);
+            circle(b.x - size * 0.28, b.y - size * 0.28, size * 0.45);
+        }
+
+        colorMode(RGB, 255, 255, 255, 255);
+    }
+
+    /* =========================
+       Star / Trunk / Text
+       ========================= */
+    function drawTopStar() {
+        push();
+        translate(0, TREE.topY + 35);
+        rotate(-PI / 12);
+
+        noStroke();
+        fill(255, 215, 90, 35);
+        circle(0, 0, 150);
+
+        fill(255, 215, 90, 235);
+        drawStarShape(0, 0, 14, 42, 5);
+
+        fill(255, 255, 255, 120);
+        circle(-6, -6, 10);
+
+        pop();
+    }
+
+    function drawStarShape(x, y, r1, r2, n) {
+        beginShape();
+        for (let i = 0; i < 2 * n; i++) {
+            let a = i * PI / n;
+            let r = (i % 2 === 0) ? r2 : r1;
+            vertex(x + cos(a) * r, y + sin(a) * r);
+        }
+        endShape(CLOSE);
+    }
+
+    function drawTrunk() {
+        // Anchor trunk to the TOP of snow ellipse so it always shows and "connects"
+        const snowCenterY = height * GROUND_Y;
+        const snowTopY = snowCenterY - (height * GROUND_H) / 2;
+
+        const trunkW = 120;
+        const trunkH = 160;
+
+        // Put trunk top above snow top so it is visible; increase 55 if needed
+        const trunkTop = snowTopY - 5;
+        const yCenter = trunkTop + trunkH / 2;
+
+        noStroke();
+        fill(120, 78, 54);
+        rectMode(CENTER);
+        rect(0, yCenter, trunkW, trunkH, 18);
+
+        fill(0, 0, 0, 22);
+        rect(18, yCenter + 10, trunkW * 0.78, trunkH * 0.78, 16);
+
+        rectMode(CORNER);
+
+    }
+
+    function drawGreeting() {
+        const msg = "Merry Christmas, Emily and Robert!";
+
+        fill(255, 255, 255, 235);
+        textAlign(CENTER, CENTER);
+
+        // Auto-fit title size so it never goes off-screen
+        let size = 56;
+        textSize(size);
+        while (textWidth(msg) > width * 0.92 && size > 24) {
+            size -= 2;
+            textSize(size);
+        }
+        text(msg, width / 2, 95);
+
+        textSize(18);
+        fill(255, 255, 255, 140);
+        text("Press S to save PNG", width / 2, 130);
+        text("Hover lights to glow", width / 2, 155);
+    }
+    function drawBranchSkirt() {
+        // This sits right above the trunk to make a natural transition.
+        const snowCenterY = height * GROUND_Y;
+        const snowTopY = snowCenterY - (height * GROUND_H) / 2;
+
+        const y = snowTopY - 70;     // position of skirt (move up/down if needed)
+        const w = 340;               // skirt width
+        const h = 120;               // skirt height
+
+        // darker green for depth
+        const baseCol = color(12, 78, 40);
+        const darkCol = color(8, 60, 30);
+
+        // main jagged skirt
+        noStroke();
+        fill(baseCol);
+        beginShape();
+        vertex(0, y - h * 0.55);
+        vertex(-w * 0.52, y + h * 0.30);
+
+        const teeth = 14;
+        for (let i = 0; i <= teeth; i++) {
+            let t = i / teeth;
+            let x = lerp(-w * 0.52, w * 0.52, t);
+            let amp = (i % 2 === 0) ? 22 : 10;
+            let yy = (y + h * 0.30) - amp - 6 * noise(3.1, i * 0.35);
+            vertex(x, yy);
+        }
+
+        vertex(w * 0.52, y + h * 0.30);
+        endShape(CLOSE);
+
+        // small shadow to tuck the trunk in
+        fill(darkCol);
+        beginShape();
+        vertex(0, y - h * 0.40);
+        vertex(w * 0.22, y + h * 0.10);
+        vertex(0, y + h * 0.18);
+        endShape(CLOSE);
+
+        // soft highlight
+        fill(255, 255, 255, 8);
+        beginShape();
+        vertex(0, y - h * 0.40);
+        vertex(-w * 0.20, y + h * 0.05);
+        vertex(0, y);
+        endShape(CLOSE);
+    }
+
+
+    function keyPressed() {
+        if (key === 's' || key === 'S') {
+            saveCanvas('christmas_tree', 'png');
+        }
+        if (key === 'r' || key === 'R') {
+            buildSpiralBulbs(); // regenerate bulb layout
+        }
+    }
+</script>
+</body>
+</html>
+
