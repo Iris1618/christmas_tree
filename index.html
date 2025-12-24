@@ -349,10 +349,20 @@
         fill(255, 255, 255, 140);
         text("Press S to save PNG", width / 2, 130);
         text("Hover lights to glow", width / 2, 155);
-          // Author signature
-        textSize(14);
-        fill(255, 255, 255, 120);
-        text("Made with ❤️ by Iris", width / 2, height - 24);
+        // Author signature (clear & elegant)
+        const sigX = 22;
+        const sigY = height - 32;
+
+        // background pill for contrast
+        noStroke();
+        fill(0, 0, 0, 90);
+        rect(sigX - 10, sigY - 18, 210, 32, 16);
+        // text
+        textAlign(LEFT, CENTER);
+        textSize(16);
+        fill(255, 255, 255, 230);
+        text("Made with ❤️ by Iris", sigX, sigY);
+
 
     }
     function drawBranchSkirt() {
@@ -416,6 +426,7 @@
 </script>
 </body>
 </html>
+
 
 
 
